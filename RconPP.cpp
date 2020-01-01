@@ -2,12 +2,15 @@
 // Created by fancy on 2019/12/27.
 //
 
-#include "RconPP.h"
+#include "RconPP.hpp"
 #include "sock.h"
 #include <sys/socket.h>
 #include <cstdio>
 #include <cstring>
 #include <vector>
+#include <memory>
+#include <iostream>
+
 void RconPP::connect_host(){
     // open socket
     rsock = net_connect(host.c_str(), port.c_str());
@@ -15,6 +18,11 @@ void RconPP::connect_host(){
 void RconPP::close() {
     net_close(rsock);
     rsock = -1;
+}
+RconPP::~RconPP(){
+    if(rsock!= -1){
+        close();
+    }
 }
 int RconPP::net_send_packet(int sd, rc_packet *packet)
 {
@@ -49,7 +57,57 @@ int RconPP::net_clean_incoming(int sd, int size)
 
     return ret;
 }
+int RconPP::recv_response(rc_packet &packet)
+{
+    int psize;
 
+    // packet.size = packet.id = packet.cmd = 0;
+
+    int ret = recv(rsock, (char *) &psize, sizeof(int), 0);
+
+    if (ret == 0)
+    {
+        fprintf(stderr, "Connection lost.\n");
+        connection_alive = 0;
+        return -1;
+    }
+
+    if (ret != sizeof(int))
+    {
+        fprintf(stderr, "Error: recv() failed. Invalid packet size (%d).\n", ret);
+        connection_alive = 0;
+        return -1;
+    }
+
+    if (psize < 10 || psize > DataBufferSize)
+    {
+        fprintf(stderr, "Warning: invalid packet size (%d). Must over 10 and less than %d.\n", psize, DataBufferSize);
+
+        if(psize > DataBufferSize || psize < 0) psize = DataBufferSize;
+        net_clean_incoming(rsock, psize);
+
+        return -1;
+    }
+
+    packet.size = psize;
+
+    ret = recv(rsock, (char *) &packet + sizeof(int), psize, 0);
+    if (ret == 0)
+    {
+        fprintf(stderr, "Connection lost.\n");
+        connection_alive = 0;
+        return -1;
+    }
+
+    if(ret != psize)
+    {
+        fprintf(stderr, "Warning: recv() return value (%d) does not match expected packet size (%d).\n", ret, psize);
+        net_clean_incoming(rsock, DataBufferSize); /* Should be enough. Needs some checking */
+        return -1;
+    }
+
+    return 0;
+}
 RconPP::rc_packet * RconPP::net_recv_packet(int sd)
 {
     int psize;
@@ -73,11 +131,11 @@ RconPP::rc_packet * RconPP::net_recv_packet(int sd)
         return NULL;
     }
 
-    if (psize < 10 || psize > DATA_BUFFSIZE)
+    if (psize < 10 || psize > DataBufferSize)
     {
-        fprintf(stderr, "Warning: invalid packet size (%d). Must over 10 and less than %d.\n", psize, DATA_BUFFSIZE);
+        fprintf(stderr, "Warning: invalid packet size (%d). Must over 10 and less than %d.\n", psize, DataBufferSize);
 
-        if(psize > DATA_BUFFSIZE  || psize < 0) psize = DATA_BUFFSIZE;
+        if(psize > DataBufferSize || psize < 0) psize = DataBufferSize;
         net_clean_incoming(sd, psize);
 
         return NULL;
@@ -96,7 +154,7 @@ RconPP::rc_packet * RconPP::net_recv_packet(int sd)
     if(ret != psize)
     {
         fprintf(stderr, "Warning: recv() return value (%d) does not match expected packet size (%d).\n", ret, psize);
-        net_clean_incoming(sd, DATA_BUFFSIZE); /* Should be enough. Needs some checking */
+        net_clean_incoming(sd, DataBufferSize); /* Should be enough. Needs some checking */
         return NULL;
     }
 
@@ -106,7 +164,7 @@ void RconPP::print_color(int color)
 {
     // sh compatible color array
 #ifndef _WIN32
-    char *colors[] =
+    const char * const colors[] =
             {
                     "\033[0;30m",   /* 00 BLACK     0x30 */
                     "\033[0;34m",   /* 01 BLUE      0x31 */
@@ -146,7 +204,22 @@ void RconPP::print_color(int color)
 #endif
     }
 }
+void RconPP::print_raw(rc_packet &packet){
 
+        for (int i = 0; packet.data[i] != 0; ++i) putchar(packet.data[i]);
+        return;
+
+}
+void RconPP::print(rc_packet &packet, const std::string command)
+{
+    int i;
+    for(i=0;i<packet.size && packet.data[i]!='\0';i++){
+        putchar(packet.data[i]);
+    }
+
+    if (packet.data[i-1] != '\n' && packet.data[i-1] != '\r')
+        puts("\r\n");
+}
 // this hacky mess might use some optimizing
 void RconPP::packet_print(rc_packet *packet)
 {
@@ -206,16 +279,16 @@ RconPP::rc_packet *RconPP::packet_build(int id, int cmd, const char *s1)
 
     // size + id + cmd + s1 + s2 NULL terminator
     int s1_len = strlen(s1);
-    if (s1_len > DATA_BUFFSIZE)
+    if (s1_len > DataBufferSize)
     {
-        fprintf(stderr, "Warning: Command string too long (%d). Maximum allowed: %d.\n", s1_len, DATA_BUFFSIZE);
+        fprintf(stderr, "Warning: Command string too long (%d). Maximum allowed: %d.\n", s1_len, DataBufferSize);
         return NULL;
     }
 
     packet.size = sizeof(int) * 2 + s1_len + 2;
     packet.id = id;
     packet.cmd = cmd;
-    strncpy(packet.data, s1, DATA_BUFFSIZE);
+    strncpy(packet.data, s1, DataBufferSize);
 
     return &packet;
 }
@@ -247,12 +320,12 @@ struct RconPP::rcon_packet RconPP::packet_build_new(int32_t id, int32_t cmd, cha
     struct RconPP::rcon_packet packet;
     size_t string_length = strlen(string);
 
-    if (string_length > MAX_STRING_SIZE)
+    if (string_length > MaxStringSize)
     {
-        string_length = MAX_STRING_SIZE;
+        string_length = MaxStringSize;
         fprintf(stderr,
                 "Warning: command string is too long. Truncating to "
-                "%u characters.\n", (unsigned) MAX_STRING_SIZE
+                "%u characters.\n", (unsigned) MaxStringSize
         );
     }
 
@@ -270,7 +343,7 @@ int RconPP::rcon_auth()
 {
     int ret;
 
-    rc_packet *packet = packet_build(RCON_PID, RCON_AUTHENTICATE, password.c_str());
+    rc_packet *packet = packet_build(RconPid, RconAuthenticate, password.c_str());
     if (packet == NULL)
         return 0;
 
@@ -286,31 +359,28 @@ int RconPP::rcon_auth()
     return packet->id == -1 ? 0 : 1;
 }
 
-int RconPP::rcon_command(int rsock, const char *const command)
+int RconPP::rcon_command(int rsock, const std::string command)
 {
-    int ret; (void) ret;
-
     size_t size;
-    uint8_t *p = packet_build_malloc(&size, RCON_PID, RCON_EXEC_COMMAND, command);
-    if (p == NULL)
+    std::unique_ptr<unsigned char> p (packet_build_malloc(&size, RconPid, RconExecuteCmd, command.c_str()));
+
+    if (p.get() == NULL)
     {
         connection_alive = 0;
         return 0;
     }
 
-    net_send(rsock, p, size);
-
-    free(p);
+    net_send(rsock, p.get(), size);
 
     //ret = net_send_packet(rsock, packet);
     //if(!ret) return 0; /* send failed */
 
-    rc_packet *packet;
-    packet = net_recv_packet(rsock);
-    if (packet == NULL)
+    rc_packet packet;
+    int status = recv_response(packet);
+    if ( status != 0)
         return 0;
 
-    if (packet->id != RCON_PID)
+    if (packet.id != RconPid)
         return 0;
 
     if (!silent_mode)
@@ -321,8 +391,13 @@ int RconPP::rcon_command(int rsock, const char *const command)
         }
         else
         */
-        if (packet->size > 10)
-            packet_print(packet);
+        if (packet.size > 10)
+            if(raw_output){
+                print_raw(packet);
+            }else{
+                print(packet, command.c_str());
+            }
+
     }
 
     return 1;
@@ -330,7 +405,8 @@ int RconPP::rcon_command(int rsock, const char *const command)
 
 int RconPP::run_commands(std::vector<std::string> commands)
 {
-    int i, ok = 1, ret = 0;
+    int ok = 1;
+    int ret = 0;
     for (auto &command: commands){
         ok = rcon_command(rsock, command.c_str());
         ret += ok;
@@ -343,13 +419,13 @@ int RconPP::run_commands(std::vector<std::string> commands)
 int RconPP::run_terminal_mode()
 {
     int ret = 0;
-    char command[DATA_BUFFSIZE] = {0x00};
+    char command[DataBufferSize] = {0x00};
 
     puts("Logged in. Type \"Q\" to quit!");
 
     while (connection_alive)
     {
-        int len = get_line(command, DATA_BUFFSIZE);
+        int len = get_line(command, DataBufferSize);
         if(command[0] == 'Q' && command[1] == 0)
             break;
 

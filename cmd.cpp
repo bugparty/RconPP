@@ -5,7 +5,7 @@
 #include <boost/program_options.hpp>
 #include <boost/lexical_cast.hpp>
 #include <iostream>
-#include "RconPP.h"
+#include "SandstormRcon.hpp"
 namespace po = boost::program_options;
 using  boost::lexical_cast;
 using namespace std;
@@ -20,7 +20,7 @@ string env_name_mapper(const string& env_name){
 }
 
 int main(int argc, const char* argv[]){
-    bool terminalMode;
+    bool terminalMode = 0;
     po::options_description desc( "Usage: rcon [OPTIONS]... [COMMANDS]...\n\n"
                                                   "Sends rcon commands to game server.\n\n"
                                                   "Option:");
@@ -49,49 +49,30 @@ int main(int argc, const char* argv[]){
         return -1;
     }
 
-
-
-
-
     if (vm.count("help")) {
         cout << desc << "\n";
         return 1;
     }
 
-    if (vm.count("host")){
-        cout << vm["host"].as<string>()<< endl;
-    }
-    if (vm.count("port")){
-        cout << vm["port"].as<string>() << endl;
-    }
-    if (vm.count("password")){
-        cout << vm["password"].as<string>() <<endl;
-    }
-    if (vm.count("command")){
-        vector<string> cmds = vm["command"].as<vector<string>>();
-        for(auto &s: cmds){
-            cout << s << ",";
-        }
-        cout <<endl;
-    }
     if (vm.count("interactive")){
         terminalMode = true;
     }
-    RconPP client(vm["host"].as<string>(), vm["port"].as<string>(), vm["password"].as<string>());
+    SandstormRcon client( vm["host"].as<string>(),
+                         vm["port"].as<string>(), vm["password"].as<string>(),
+                                 false, false);
     client.connect_host();
     // auth & commands
     if (client.rcon_auth())
     {
-        if (terminalMode)
+        if (terminalMode){
             client.run_terminal_mode();
-        else
+        }else
             client.run_commands(vm["command"].as<vector<string>>());
     }
     else // auth failed
         fprintf(stdout, "Authentication failed!\n");
 
-    client.close();
+
 
     return EXIT_SUCCESS;
-    return 0;
 }
