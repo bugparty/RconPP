@@ -58,10 +58,10 @@ protected:
     std::string port;
     std::string password;
     bool connection_alive = true;
-    bool raw_output;
-    bool print_colors;
-    bool silent_mode;
-    int rsock;
+    bool raw_output = false;
+    bool print_colors = false;
+    bool silent_mode = false;
+    int rsock = -1;
     int net_send_packet(int sd, rc_packet *packet);
 
     rc_packet *net_recv_packet(int sd);
@@ -72,7 +72,7 @@ protected:
     int recv_response(rc_packet &packet);
     virtual void print(rc_packet &packet, const std::string command);
     rc_packet *packet_build(int id, int cmd, const char *s1);
-    uint8_t *packet_build_malloc(size_t *size, int32_t id, int32_t cmd, const char *string);
+    uint8_t *packet_build_malloc(size_t &size, int32_t id, int32_t cmd, const char *string);
     struct rcon_packet packet_build_new(int32_t id, int32_t cmd, char *string);
 };
 

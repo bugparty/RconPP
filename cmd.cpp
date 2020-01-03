@@ -48,7 +48,6 @@ int main(int argc, const char* argv[]){
         cout << desc << endl;
         return -1;
     }
-
     if (vm.count("help")) {
         cout << desc << "\n";
         return 1;
@@ -66,12 +65,13 @@ int main(int argc, const char* argv[]){
     {
         if (terminalMode){
             client.run_terminal_mode();
-        }else
+        }else{
             client.run_commands(vm["command"].as<vector<string>>());
+        }
+
     }
     else // auth failed
         fprintf(stdout, "Authentication failed!\n");
-
 
 
     return EXIT_SUCCESS;

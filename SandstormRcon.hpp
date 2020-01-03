@@ -15,6 +15,7 @@ public:
 
 protected:
     void print(rc_packet &packet, const std::string command);
+    void printListPlayers(rc_packet &packet);
 };
 
 

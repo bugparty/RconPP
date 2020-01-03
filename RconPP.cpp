@@ -294,16 +294,16 @@ RconPP::rc_packet *RconPP::packet_build(int id, int cmd, const char *s1)
 }
 
 // TODO(Tiiffi): String length limit?
-uint8_t *RconPP::packet_build_malloc(size_t *size, int32_t id, int32_t cmd, const char *string)
+uint8_t *RconPP::packet_build_malloc(size_t &size, int32_t id, int32_t cmd, const char *string)
 {
     size_t string_length = strlen(string);
 
-    *size = 3 * sizeof(int32_t) + string_length + 2;
-    uint8_t * packet = (uint8_t *)malloc(*size);
+    size = 3 * sizeof(int32_t) + string_length + 2;
+    uint8_t * packet = (uint8_t *)malloc(size);
     if (packet == NULL) return NULL;
 
     int32_t *p = (int32_t *) packet;
-    p[0] = (int32_t) *size - sizeof(int32_t);
+    p[0] = (int32_t) size - sizeof(int32_t);
     p[1] = id;
     p[2] = cmd;
 
@@ -362,19 +362,18 @@ int RconPP::rcon_auth()
 int RconPP::rcon_command(int rsock, const std::string command)
 {
     size_t size;
-    std::unique_ptr<unsigned char> p (packet_build_malloc(&size, RconPid, RconExecuteCmd, command.c_str()));
+    std::unique_ptr<unsigned char> p (packet_build_malloc(size, RconPid, RconExecuteCmd, command.c_str()));
 
     if (p.get() == NULL)
     {
+        fprintf(stderr, "%s", "packet build failed");
         connection_alive = 0;
         return 0;
     }
-
     net_send(rsock, p.get(), size);
 
     //ret = net_send_packet(rsock, packet);
     //if(!ret) return 0; /* send failed */
-
     rc_packet packet;
     int status = recv_response(packet);
     if ( status != 0)
