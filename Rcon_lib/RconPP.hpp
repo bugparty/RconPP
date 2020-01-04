@@ -51,6 +51,7 @@ public:
     int run_commands(std::vector<std::string> commands);
     void connect_host();
     void close();
+    void dumpPacket(rc_packet& packet);
     virtual ~RconPP();
 
 protected:

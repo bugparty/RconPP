@@ -5,7 +5,7 @@
 #include <boost/program_options.hpp>
 #include <boost/lexical_cast.hpp>
 #include <iostream>
-#include "SandstormRcon.hpp"
+#include "Rcon_lib/SandstormRcon.hpp"
 namespace po = boost::program_options;
 using  boost::lexical_cast;
 using namespace std;

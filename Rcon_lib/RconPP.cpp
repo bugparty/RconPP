@@ -10,6 +10,7 @@
 #include <vector>
 #include <memory>
 #include <iostream>
+#include <fstream>
 
 void RconPP::connect_host(){
     // open socket
@@ -390,12 +391,15 @@ int RconPP::rcon_command(int rsock, const std::string command)
         }
         else
         */
-        if (packet.size > 10)
+        if (packet.size > 10){
+            dumpPacket(packet);
             if(raw_output){
                 print_raw(packet);
             }else{
                 print(packet, command.c_str());
             }
+        }
+
 
     }
 
@@ -458,6 +462,17 @@ int RconPP::get_line(char *buffer, int bsize)
         while ((ch = getchar()) != '\n' && ch != EOF);
 
     return len;
+}
+
+void RconPP::dumpPacket(RconPP::rc_packet &packet) {
+    std::ofstream f;
+    f.open("dump.txt");
+
+    f << packet.id << std::endl;
+    f << packet.cmd << std::endl;
+    f << packet.size << std::endl;
+    f << packet.data << std::endl;
+    f.close();
 }
 
 

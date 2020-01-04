@@ -8,14 +8,14 @@
 #include <string>
 
 struct SandStormPlayer {
-    int id;
+    int id = 0;
     std::string name;
     std::string net_id;
     std::string ip;
-    int score;
+    int score = 0;
     int parse(const char* str, size_t strSize);
 
-    void skipTableAndSeperator(const char *str, size_t &i) const;
+    void skipTableAndSeparator(const char *str, size_t &i, size_t limit) const;
     size_t getTokenLength(const char *str) const;
 
 
